@@ -1,0 +1,10 @@
+[project]
+name = "mapping"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.9"
+dependencies = [
+    "django-qrcode>=0.3",
+    "pillow>=11.3.0",
+    "tomli>=2.3.0",
+]
