@@ -8,13 +8,27 @@
 import tomli
 import tomli_w
 import json
+import subprocess
 import os
+import re
 from geocoding import process_data_with_geocoding
 
 # Configuration
 TOML_FILE = 'data.toml'
 ENRICHED_TOML_FILE = 'data_enriched.toml'
 OUTPUT_FILE = 'index.html'
+OUTPUT_FILE_UNMIN = 'index_unminified.html'
+
+def minify_code(content):
+    # Remove HTML comments
+    content = re.sub(r'<!--.*?-->', '', content, flags=re.DOTALL)
+    # Remove CSS/JS block comments
+    content = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)
+    # Remove leading/trailing whitespace on lines
+    content = re.sub(r'^\s+|\s+$', '', content, flags=re.MULTILINE)
+    # Remove empty lines
+    content = re.sub(r'\n+', '', content)
+    return content
 
 # The HTML Template
 # We use a Python f-string to inject the JSON directly into the JS variable.
@@ -29,17 +43,11 @@ HTML_TEMPLATE = """
         /* CRITICAL CSS - INLINED FOR SPEED */
         :root {{ --primary: #007bff; --bg: #f4f4f4; }}
         body {{ margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; height: 100vh; display: flex; flex-direction: column; }}
-        
-        /* Layout */
-        header {{ background: #fff; padding: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); z-index: 1000; display: flex; gap: 10px; overflow-x: auto; }}
+        header {{ background: #fff; padding: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); z-index: 1000; position: relative; display: flex; gap: 10px; flex-wrap: wrap; }}
         #map {{ flex-grow: 1; z-index: 1; }}
         #list-view {{ display: none; flex-grow: 1; overflow-y: auto; background: var(--bg); padding: 10px; }}
-        
-        /* Controls */
         select, button {{ padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; background: #fff; font-size: 14px; cursor: pointer; }}
         button.active {{ background: var(--primary); color: white; border-color: var(--primary); }}
-        
-        /* Business Card (List View & Popup) */
         .biz-card {{ background: #fff; padding: 15px; border-radius: 8px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
         .biz-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }}
         .biz-name {{ margin: 0; font-size: 1.1em; font-weight: bold; }}
@@ -49,256 +57,74 @@ HTML_TEMPLATE = """
         .closed {{ color: red; }}
         .biz-actions {{ margin-top: 10px; display: flex; gap: 10px; }}
         .btn-link {{ text-decoration: none; color: var(--primary); font-size: 0.9em; font-weight: 500; }}
-        
-        /* Leaflet Tweaks */
         .leaflet-popup-content-wrapper {{ border-radius: 8px; padding: 0; }}
         .leaflet-popup-content {{ margin: 0; width: 280px !important; }}
         .popup-card {{ border: none; box-shadow: none; margin: 0; }}
-        
-        /* Custom Marker Icons */
         .custom-icon {{ text-align: center; line-height: 30px; font-size: 20px; background: white; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }}
+        /* Marker Cluster Styles */
+        .marker-cluster {{ background-clip: padding-box; border-radius: 50%; display: flex; align-items: center; justify-content: center; }}
+        .marker-cluster div {{ width: 30px; height: 30px; margin: 5px; text-align: center; border-radius: 50%; font: 12px "Helvetica Neue", Arial, Helvetica, sans-serif; font-weight: bold; display: flex; align-items: center; justify-content: center; }}
+        .marker-cluster-small {{ background-color: rgba(110, 204, 57, 0.6); }}
+        .marker-cluster-small div {{ background-color: rgba(110, 204, 57, 0.8); color: white; }}
+        .marker-cluster-medium {{ background-color: rgba(240, 194, 12, 0.6); }}
+        .marker-cluster-medium div {{ background-color: rgba(240, 194, 12, 0.8); color: white; }}
+        .marker-cluster-large {{ background-color: rgba(241, 128, 23, 0.6); }}
+        .marker-cluster-large div {{ background-color: rgba(241, 128, 23, 0.8); color: white; }}
+        .stacked-icon {{ position: relative; text-align: center; line-height: 30px; font-size: 20px; background: white; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }}
+        .stacked-icon .stack-count {{ position: absolute; top: -8px; right: -8px; background: #ff4444; color: white; border-radius: 50%; width: 18px; height: 18px; font-size: 11px; font-weight: bold; line-height: 18px; text-align: center; border: 2px solid white; }}
+        .multi-icon-cluster {{ background: white; border-radius: 20px; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px 6px; }}
+        .multi-icon-cluster .cluster-icons {{ display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 2px; }}
+        .multi-icon-cluster .cluster-type-icon {{ font-size: 16px; line-height: 1; }}
+        .multi-icon-cluster .cluster-count {{ font-size: 10px; font-weight: bold; color: #666; margin-top: 1px; }}
+        .cluster-popup-content {{ max-height: 300px; overflow-y: auto; }}
+        .cluster-popup-content .biz-card {{ border-bottom: 1px solid #eee; margin-bottom: 10px; padding-bottom: 10px; }}
+        .cluster-popup-content .biz-card:last-child {{ border-bottom: none; margin-bottom: 0; padding-bottom: 0; }}
+        /* Hierarchical Dropdown Styles */
+        .dropdown {{ position: relative; min-width: 140px; }}
+        .dropdown-selected {{ padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; background: #fff; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; white-space: nowrap; }}
+        .dropdown-selected:hover {{ border-color: #999; }}
+        .dropdown-text {{ display: flex; align-items: center; gap: 4px; }}
+        .dropdown-arrow {{ font-size: 10px; color: #666; transition: transform 0.2s; }}
+        .dropdown.open .dropdown-arrow {{ transform: rotate(180deg); }}
+        .dropdown-options {{ display: none; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #ccc; border-radius: 4px; margin-top: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 10000; max-height: 300px; overflow-y: auto; min-width: 180px; }}
+        .dropdown.open .dropdown-options {{ display: block; }}
+        .dropdown-item {{ padding: 10px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; }}
+        .dropdown-item:hover {{ background: #f5f5f5; }}
+        .item-emoji {{ font-size: 16px; width: 24px; text-align: center; }}
+        .item-label {{ flex: 1; }}
+        .category-header {{ font-weight: 500; }}
+        .category-header .item-label {{ flex: 1; }}
+        .expand-toggle {{ font-size: 10px; color: #666; padding: 4px 8px; cursor: pointer; transition: transform 0.2s; }}
+        .expand-toggle:hover {{ color: #333; background: #eee; border-radius: 4px; }}
+        .expand-toggle.expanded {{ color: var(--primary); }}
+        .subcategory-list {{ display: none; background: #fafafa; }}
+        .subcategory-list.expanded {{ display: block; }}
+        .subcategory-item {{ padding-left: 28px; font-size: 13px; }}
+        .subcategory-item .item-emoji {{ font-size: 14px; }}
+        .dropdown-category {{ border-bottom: 1px solid #eee; }}
+        .dropdown-category:last-child {{ border-bottom: none; }}
     </style>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
 </head>
 <body>
-
 <header>
-        <select id="filter-type">
-            <option value="all">All Places</option>
-        </select>
-        <button id="btn-map" class="active">Map</button>
+    <div id="filter-dropdown" class="dropdown">
+        <div class="dropdown-selected"></div>
+        <div class="dropdown-options"></div>
+    </div>
+    <button id="btn-map" class="active">Map</button>
     <button id="btn-list">List</button>
     <button id="btn-loc">📍 Me</button>
 </header>
-
 <div id="map"></div>
 <div id="list-view"></div>
-
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
+<script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
 <script>
-    // --- 1. PRE-SEEDED DATA ---
     const rawData = {json_data};
     const businesses = rawData.businesses;
-
-    // --- 2. STATE ---
-    let map, userMarker;
-    let currentView = 'map'; // 'map' or 'list'
-    let currentFilter = 'all';
-    let userLoc = null; 
-    let markers = [];
-
-    // --- 3. LOGIC: Time & Open Status ---
-    function getOpenStatus(b) {{
-        const now = new Date();
-        const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-        const dayName = days[now.getDay()];
-        const dateString = now.toISOString().split('T')[0]; // YYYY-MM-DD format
-
-        // Check Holidays first
-        let hoursStr = null;
-        if (b.holiday_hours && b.holiday_hours[dateString]) {{
-            hoursStr = b.holiday_hours[dateString];
-        }} else if (b.hours) {{
-            hoursStr = b.hours[dayName] || b.hours['default'];
-        }}
-
-        if (!hoursStr || hoursStr === 'Closed') return {{ isOpen: false, text: 'Closed today' }};
-
-        // Parse "07:00-16:00"
-        const [start, end] = hoursStr.split('-');
-        const [sh, sm] = start.split(':').map(Number);
-        const [eh, em] = end.split(':').map(Number);
-        
-        const nowMinutes = now.getHours() * 60 + now.getMinutes();
-        const startMinutes = sh * 60 + sm;
-        const endMinutes = eh * 60 + em;
-
-        const isOpen = nowMinutes >= startMinutes && nowMinutes < endMinutes;
-        return {{ 
-            isOpen: isOpen, 
-            text: isOpen ? `Open until ${{end}}` : `Closed (Opens ${{start}})`
-        }};
-    }}
-
-    // --- 4. RENDER FUNCTIONS ---
-    
-    // Icon Mapping (Emoji fallback)
-    function getIconHtml(type) {{
-        const icons = {{ 'cafe': '☕', 'restaurant': '🍔', 'store': '🛍️', 'bar': '🍺' }};
-        return icons[type] || '📍';
-    }}
-
-    function createCardHTML(b) {{
-            const status = getOpenStatus(b);
-            const statusClass = status.isOpen ? 'open' : 'closed';
-            const typeDisplay = Array.isArray(b.type) ? b.type.join(' & ') : b.type;
-    
-            return `
-                <div class="biz-card popup-card">
-                    <div class="biz-header">
-                        <span class="biz-name">${{b.name}}</span>
-                        <span class="biz-type">${{typeDisplay}}</span>
-                    </div>
-                    <div class="biz-status ${{statusClass}}">${{status.text}}</div>
-                <p>${{b.description}}</p>
-                <div class="biz-actions">
-                     <a href="https://www.google.com/maps/dir/?api=1&destination=${{b.lat}},${{b.long}}" target="_blank" class="btn-link">Navigate ↗</a>
-                     ${{b.phone ? `<a href="tel:${{b.phone}}" class="btn-link">Call</a>` : ''}}
-                </div>
-            </div>
-        `;
-    }}
-
-    function renderList(data) {{
-        const container = document.getElementById('list-view');
-        container.innerHTML = '';
-        if(data.length === 0) container.innerHTML = '<p style="text-align:center; margin-top:20px;">No results found.</p>';
-        
-        data.forEach(b => {{
-            container.innerHTML += createCardHTML(b);
-        }});
-    }}
-
-        function renderMap(data) {{
-            // Clear layers
-            markers.forEach(m => map.removeLayer(m));
-            markers = [];
-
-            data.forEach(b => {{
-                const primaryType = Array.isArray(b.type) ? b.type[0] : b.type;
-                const icon = L.divIcon({{
-                    className: 'custom-icon',
-                    html: getIconHtml(primaryType),
-                    iconSize: [30, 30],
-                iconAnchor: [15, 15] // Center the icon
-            }});
-
-            const marker = L.marker([b.lat, b.long], {{ icon: icon }}).addTo(map);
-            marker.bindPopup(createCardHTML(b));
-            markers.push(marker);
-        }});
-    }}
-
-        function updateApp() {{
-            // Filter Data
-            let filtered = businesses;
-            if (currentFilter !== 'all') {{
-                filtered = businesses.filter(b => {{
-                    if (Array.isArray(b.type)) {{
-                        return b.type.includes(currentFilter);
-                    }}
-                    return b.type === currentFilter;
-                }});
-            }}
-
-            // If we have user location, calculate distance
-        if (userLoc) {{
-             filtered.forEach(b => {{
-                 b.distance = map.distance(userLoc, [b.lat, b.long]); 
-             }});
-             // Sort by distance
-             filtered.sort((a, b) => a.distance - b.distance);
-        }}
-
-        if (currentView === 'map') renderMap(filtered);
-        else renderList(filtered);
-    }}
-
-    // --- 5. INITIALIZATION ---
-    window.onload = function() {{
-        // Generate Dynamic Filters
-        const filterSelect = document.getElementById('filter-type');
-        const allTypes = new Set();
-        businesses.forEach(b => {{
-            if (Array.isArray(b.type)) {{
-                b.type.forEach(t => allTypes.add(t));
-            }} else {{
-                allTypes.add(b.type);
-            }}
-        }});
-
-        Array.from(allTypes).sort().forEach(type => {{
-            const opt = document.createElement('option');
-            opt.value = type;
-            opt.textContent = type.charAt(0).toUpperCase() + type.slice(1) + 's';
-            filterSelect.appendChild(opt);
-        }});
-
-        // Parse URL for Start Location
-        const params = new URLSearchParams(window.location.search);
-        const lat = parseFloat(params.get('lat')) || 37.7749;
-        const lng = parseFloat(params.get('lng')) || -122.4194;
-        const zoom = parseInt(params.get('zoom')) || 15;
-
-        // Init Map
-        map = L.map('map').setView([lat, lng], zoom);
-        
-        // Lightweight Tiles
-        L.tileLayer('https://{{s}}.basemaps.cartocdn.com/rastertiles/voyager/{{z}}/{{x}}/{{y}}{{r}}.png', {{
-            attribution: '&copy; OpenStreetMap &copy; CARTO',
-            maxZoom: 20
-        }}).addTo(map);
-
-        // Initial Render
-        updateApp();
-
-        // --- EVENTS ---
-        
-        // Toggle Map/List
-        document.getElementById('btn-map').onclick = () => {{
-            document.getElementById('map').style.display = 'block';
-            document.getElementById('list-view').style.display = 'none';
-            document.getElementById('btn-map').classList.add('active');
-            document.getElementById('btn-list').classList.remove('active');
-            currentView = 'map';
-            updateApp();
-        }};
-        
-        document.getElementById('btn-list').onclick = () => {{
-            document.getElementById('map').style.display = 'none';
-            document.getElementById('list-view').style.display = 'block';
-            document.getElementById('btn-list').classList.add('active');
-            document.getElementById('btn-map').classList.remove('active');
-            currentView = 'list';
-            updateApp();
-        }};
-
-        // Filter
-        document.getElementById('filter-type').onchange = (e) => {{
-            currentFilter = e.target.value;
-            updateApp();
-        }};
-
-        // Live Location
-        document.getElementById('btn-loc').onclick = () => {{
-            if (!navigator.geolocation) return alert('Geolocation not supported');
-            
-            // Show loading state (optional)
-            document.getElementById('btn-loc').textContent = '⏳';
-
-            navigator.geolocation.getCurrentPosition(pos => {{
-                const {{ latitude, longitude }} = pos.coords;
-                userLoc = [latitude, longitude];
-                
-                // Add/Update User Marker
-                if (userMarker) map.removeLayer(userMarker);
-                userMarker = L.circleMarker(userLoc, {{ radius: 8, color: 'blue', fillColor: '#2a81cb', fillOpacity: 1 }}).addTo(map);
-                
-                // Center Map
-                map.setView(userLoc, 16);
-                
-                document.getElementById('btn-loc').textContent = '📍 Me';
-                
-                // Update views (trigger sorting)
-                updateApp();
-            }}, err => {{
-                console.error(err);
-                alert('Could not get location.');
-                document.getElementById('btn-loc').textContent = '📍 Me';
-            }});
-        }};
-    }};
+    /* JS_INJECTION_POINT */
 </script>
 </body>
 </html>
@@ -323,19 +149,66 @@ def build():
         tomli_w.dump(data, f)
 
     # 2. Convert Data to JSON string
+    # Minified JSON for production
+    json_data_min = json.dumps(data, ensure_ascii=False, separators=(',', ':'))
+    # Pretty JSON for dev (optional, but keep simple)
     json_data = json.dumps(data, ensure_ascii=False)
 
-    print(json_data)
+    # 2.5 Run Minification
+    print("Running JS minification...")
+    try:
+        subprocess.run(["npm", "run", "minify"], check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Error running minification: {e}")
+        return
+    except FileNotFoundError:
+        print("Error: npm not found. Make sure npm is installed and in your PATH.")
+        return
+
+    # 2.6 Read JS files
+    try:
+        with open("js/logic.js", "r", encoding="utf-8") as f:
+            js_logic = f.read()
+        with open("js/main.js", "r", encoding="utf-8") as f:
+            js_main = f.read()
+        with open("js/minified.js", "r", encoding="utf-8") as f:
+            js_minified = f.read()
+    except FileNotFoundError as e:
+        print(f"Error reading JS files: {e}")
+        return
+
     # 3. Inject into HTML
     print("Injecting data into HTML...")
-    final_html = HTML_TEMPLATE.format(
+    
+    # UNMINIFIED VERSION
+    formatted_html = HTML_TEMPLATE.format(
         site_title=data.get('title', 'Guide'),
         json_data=json_data
     )
+    final_html_unmin = formatted_html.replace("/* JS_INJECTION_POINT */", js_logic + "\n" + js_main)
+
+    # MINIFIED VERSION
+    # Note: We must inject before stripping comments because JS_INJECTION_POINT is a comment!
+    # Or we can strip "other" comments first?
+    # Actually, simpler: Use formatted_html but with json_data_min
+    formatted_html_min = HTML_TEMPLATE.format(
+        site_title=data.get('title', 'Guide'),
+        json_data=json_data_min
+    )
     
+    # Replace injection point with minified JS
+    final_html_min = formatted_html_min.replace("/* JS_INJECTION_POINT */", js_minified)
+    
+    # Now minify the HTML structure
+    final_html_min = minify_code(final_html_min)
+
     # 4. Write Output
+    with open(OUTPUT_FILE_UNMIN, "w", encoding="utf-8") as f:
+        f.write(final_html_unmin)
+    print(f"Unminified build complete: {OUTPUT_FILE_UNMIN}")
+
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-        f.write(final_html)
+        f.write(final_html_min)
         
     print(f"Build complete! Open {OUTPUT_FILE} to view your site.")
 

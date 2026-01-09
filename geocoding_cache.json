@@ -1,6 +1,18 @@
 {
-    "4033 Irving St, San Francisco, CA 94122": {
-        "lat": 37.7624222,
-        "long": -122.5010968
-    }
+	"4541 Irving St, San Francisco, CA 94122": {
+		"lat": 37.7621147,
+		"long": -122.5067687
+	},
+	"4542 Irving St, San Francisco, CA 94122": {
+		"lat": 37.7623888,
+		"long": -122.5068638
+	},
+	"4002 Irving St, San Francisco, CA 94122": {
+		"lat": 37.7626623,
+		"long": -122.5008937
+	},
+	"3928 Irving St, San Francisco, CA 94122": {
+		"lat": 37.762693,
+		"long": -122.5001682
+	}
 }

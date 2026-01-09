@@ -1,14 +1,19 @@
 title = "Sunset Dunes Local Businesses"
 
+[map_defaults]
+lat = 37.74914
+long = -122.50722
+zoom = 15
+min_zoom = 13
+max_bounds = [ [37.72, -122.53], [37.79, -122.45] ]
+
 [[businesses]]
-id = "cafe-01"
-name = "Espresso Station"
-type = ["cafe"]
-lat = 37.7749
-long = -122.4194
-address = "123 Main St"
+id = "hookfish"
+name = "Hookfish"
+type = ["restaurant"]
+address = "4542 Irving St, San Francisco, CA 94122"
 phone = "555-0199"
-description = "Best dark roast in town."
+description = "Fresh sustainable seafood restaurant."
     [businesses.hours]
     monday = "07:00-16:00"
     tuesday = "07:00-16:00"
@@ -23,12 +28,42 @@ description = "Best dark roast in town."
     "2026-01-01" = "10:00-14:00"
 
 [[businesses]]
-id = "blackbird books"
+id = "blackbird_books"
 name = "black Bird Books & Café"
 type = ["bookstore", "cafe"]
-address = "4033 Irving St, San Francisco, CA 94122"
+address = "4541 Irving St, San Francisco, CA 94122"
 phone = "415 555-0200"
 description = "Curated Book store with great kids section and wonderful coffee and pastries"
+    [businesses.hours]
+    default = "11:00-22:00" # Fallback if a specific day isn't listed
+    sunday = "12:00-20:00"
+
+    [businesses.holiday_hours]
+    "2025-12-25" = "Closed"
+    "2026-01-01" = "10:00-14:00"
+
+[[businesses]]
+id = "swell_bikes"
+name = "Swell Bicycles"
+type = ["bikeshop"]
+address = "4002 Irving St, San Francisco, CA 94122"
+phone = "415 555-0200"
+description = "Local bike shop"
+    [businesses.hours]
+    default = "11:00-22:00" # Fallback if a specific day isn't listed
+    sunday = "12:00-20:00"
+
+    [businesses.holiday_hours]
+    "2025-12-25" = "Closed"
+    "2026-01-01" = "10:00-14:00"
+
+[[businesses]]
+id = "day_moon"
+name = "Day Moon"
+type = ["bakery"]
+address = "3928 Irving St, San Francisco, CA 94122"
+phone = "415 555-0200"
+description = "Local bakery with bread, pastries, and premade sandwiches"
     [businesses.hours]
     default = "11:00-22:00" # Fallback if a specific day isn't listed
     sunday = "12:00-20:00"
@@ -43,4 +78,4 @@ id = "lawton"
 name = "Lawton & Sunset Dunes"
 lat = 37.75651
 long = -122.50924
-zoom = 18 # Optional: override default zoom
+zoom = 15 # Optional: override default zoom

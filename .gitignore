@@ -1,0 +1,10 @@
+data_enriched.toml
+.venv/
+__pycache__/
+*.pyc
+.idea/
+.DS_Store
+index_unminified.html
+qrcodes/*.png
+node_modules/
+js/minified.js
