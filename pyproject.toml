@@ -7,4 +7,5 @@ dependencies = [
     "django-qrcode>=0.3",
     "pillow>=11.3.0",
     "tomli>=2.3.0",
+    "tomli-w>=1.2.0",
 ]

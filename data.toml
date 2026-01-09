@@ -24,13 +24,11 @@ description = "Best dark roast in town."
 
 [[businesses]]
 id = "blackbird books"
-name = "blackbird books"
+name = "black Bird Books & Café"
 type = ["bookstore", "cafe"]
-lat = 37.76217
-long = -122.50676
-address = "123 Irving St"
+address = "4033 Irving St, San Francisco, CA 94122"
 phone = "415 555-0200"
-description = "Curate Book store with great kids section and wonderful coffee and pastries"
+description = "Curated Book store with great kids section and wonderful coffee and pastries"
     [businesses.hours]
     default = "11:00-22:00" # Fallback if a specific day isn't listed
     sunday = "12:00-20:00"

@@ -1,18 +1,22 @@
 # /// script
 # dependencies = [
 #   "tomli",
+#   "tomli-w",
 #   "qrcode[pil]",
 #   "pillow",
 # ]
 # ///
 
 import tomli
+import tomli_w
 import os
 import qrcode
 from PIL import Image
+from geocoding import process_data_with_geocoding
 
 # === CONFIGURATION ===
 TOML_FILE = 'data.toml'
+ENRICHED_TOML_FILE = 'data_enriched.toml'
 OUTPUT_DIR = 'qrcodes'
 # REPLACE THIS WITH YOUR ACTUAL LIVE URL AFTER HOSTING
 BASE_URL = 'https://your-fast-map-site.netlify.app' 
@@ -80,6 +84,14 @@ def main():
     except FileNotFoundError:
         print(f"Error: {TOML_FILE} not found!")
         return
+
+    # Geocode addresses if lat/long are missing
+    process_data_with_geocoding(data)
+
+    # Save enriched data
+    print(f"Saving enriched data to {ENRICHED_TOML_FILE}...")
+    with open(ENRICHED_TOML_FILE, "wb") as f:
+        tomli_w.dump(data, f)
 
     targets = []
     

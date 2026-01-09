@@ -1,15 +1,19 @@
 # /// script
 # dependencies = [
 #   "tomli",
+#   "tomli-w",
 # ]
 # ///
 
 import tomli
+import tomli_w
 import json
 import os
+from geocoding import process_data_with_geocoding
 
 # Configuration
 TOML_FILE = 'data.toml'
+ENRICHED_TOML_FILE = 'data_enriched.toml'
 OUTPUT_FILE = 'index.html'
 
 # The HTML Template
@@ -309,7 +313,15 @@ def build():
     except FileNotFoundError:
         print(f"Error: {TOML_FILE} not found!")
         return
-    
+
+    # 1.5. Geocode addresses if lat/long are missing
+    process_data_with_geocoding(data)
+
+    # 1.6. Save enriched data
+    print(f"Saving enriched data to {ENRICHED_TOML_FILE}...")
+    with open(ENRICHED_TOML_FILE, "wb") as f:
+        tomli_w.dump(data, f)
+
     # 2. Convert Data to JSON string
     json_data = json.dumps(data, ensure_ascii=False)
 
