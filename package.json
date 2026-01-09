@@ -1,0 +1,14 @@
+{
+	"name": "mapping-js-tests",
+	"version": "1.0.0",
+	"description": "Tests for mapping JS logic",
+	"scripts": {
+		"test": "jest",
+		"minify": "terser js/logic.js js/main.js -o js/minified.js -c -m"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.3.11",
+		"jest": "^29.7.0",
+		"terser": "^5.44.1"
+	}
+}
