@@ -1,5 +1,54 @@
 title = "Sunset Dunes Local Businesses"
 
+# === Category Hierarchy ===
+# Broad categories with their subcategories and emojis.
+# Adding a new type is as simple as adding a new [categories.<broad>.subcategories.<type>] entry.
+# The build pipeline, validator, and UI all read from here.
+
+[categories.food]
+emoji = "🍴"
+label = "Food"
+
+[categories.food.subcategories.bakery]
+emoji = "🥖"
+label = "Bakery"
+
+[categories.food.subcategories.restaurant]
+emoji = "🍽"
+label = "Restaurant"
+
+[categories.food.subcategories.cafe]
+emoji = "☕"
+label = "Café"
+
+[categories.drink]
+emoji = "🍹"
+label = "Drink"
+
+[categories.drink.subcategories.bar]
+emoji = "🍺"
+label = "Bar"
+
+[categories.drink.subcategories.cafe]
+emoji = "☕"
+label = "Café"
+
+[categories.shopping]
+emoji = "🛒"
+label = "Shopping"
+
+[categories.shopping.subcategories.bookstore]
+emoji = "📚"
+label = "Bookstore"
+
+[categories.shopping.subcategories.bikeshop]
+emoji = "🚲"
+label = "Bike Shop"
+
+[categories.shopping.subcategories.store]
+emoji = "🛍️"
+label = "Store"
+
 [map_defaults]
 lat = 37.74914
 long = -122.50722
@@ -14,6 +63,7 @@ type = ["restaurant"]
 address = "4542 Irving St, San Francisco, CA 94122"
 phone = "555-0199"
 description = "Fresh sustainable seafood restaurant."
+website = "https://hookfish.com"
     [businesses.hours]
     monday = "07:00-16:00"
     tuesday = "07:00-16:00"
@@ -34,6 +84,7 @@ type = ["bookstore", "cafe"]
 address = "4541 Irving St, San Francisco, CA 94122"
 phone = "415 555-0200"
 description = "Curated Book store with great kids section and wonderful coffee and pastries"
+website = "https://blackbirdbooks.com"
     [businesses.hours]
     default = "11:00-22:00" # Fallback if a specific day isn't listed
     sunday = "12:00-20:00"

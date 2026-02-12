@@ -24,12 +24,13 @@ class TestBuild(unittest.TestCase):
         # Cleanup is handled in the test via patches or temp files
         pass
 
+    @patch('build.subprocess.run')
     @patch('build.process_data_with_geocoding')
     @patch('build.TOML_FILE', 'test_data.toml')
     @patch('build.ENRICHED_TOML_FILE', 'test_data_enriched.toml')
     @patch('build.OUTPUT_FILE', 'test_index.html')
     @patch('build.OUTPUT_FILE_UNMIN', 'test_index_unminified.html')
-    def test_build(self, mock_process):
+    def test_build(self, mock_process, mock_subprocess):
         # Setup test data
         with open('test_data.toml', 'w') as f:
             f.write('title = "Test Site"\n[[businesses]]\nname = "Test Biz"\n')
@@ -54,6 +55,18 @@ class TestBuild(unittest.TestCase):
                 self.assertIn('<title>Test Site</title>', content)
                 
             mock_process.assert_called()
+
+            # Validate generated HTML files are valid
+            from tidylib import tidy_document
+            tidy_options = {
+                'show-warnings': 0,
+                'new-blocklevel-tags': 'header,nav,section,article,aside,footer,main',
+            }
+            for html_file in ['test_index.html', 'test_index_unminified.html']:
+                with open(html_file, 'r') as f:
+                    html_content = f.read()
+                _, errors = tidy_document(html_content, options=tidy_options)
+                self.assertEqual(errors, '', f"HTML validation errors in {html_file}: {errors}")
 
         finally:
             # Cleanup

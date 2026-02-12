@@ -1,36 +1,9 @@
 /**
  * Logic for Sunset Dunes Business Map
+ *
+ * categoryHierarchy is injected as a global from data.toml at build time.
+ * In tests it is provided via require() or global assignment.
  */
-
-// Category hierarchy: broad categories with their subcategories and emojis
-const categoryHierarchy = {
-	food: {
-		emoji: "🍴",
-		label: "Food",
-		subcategories: {
-			bakery: { emoji: "🥖", label: "Bakery" },
-			restaurant: { emoji: "🍽", label: "Restaurant" },
-			cafe: { emoji: "☕", label: "Café" },
-		},
-	},
-	drink: {
-		emoji: "🍹",
-		label: "Drink",
-		subcategories: {
-			bar: { emoji: "🍺", label: "Bar" },
-			cafe: { emoji: "☕", label: "Café" },
-		},
-	},
-	shopping: {
-		emoji: "🛒",
-		label: "Shopping",
-		subcategories: {
-			bookstore: { emoji: "📚", label: "Bookstore" },
-			bikeshop: { emoji: "🚲", label: "Bike Shop" },
-			store: { emoji: "🛍️", label: "Store" },
-		},
-	},
-};
 
 // Get all subcategory types for a broad category
 function getSubcategoryTypes(broadCategory) {
@@ -57,7 +30,10 @@ function getOpenStatus(b, now = new Date()) {
 		"saturday",
 	];
 	const dayName = days[now.getDay()];
-	const dateString = now.toISOString().split("T")[0]; // YYYY-MM-DD format
+	const yyyy = now.getFullYear();
+	const mm = String(now.getMonth() + 1).padStart(2, "0");
+	const dd = String(now.getDate()).padStart(2, "0");
+	const dateString = `${yyyy}-${mm}-${dd}`;
 
 	// Check Holidays first
 	let hoursStr = null;
@@ -80,23 +56,29 @@ function getOpenStatus(b, now = new Date()) {
 	const endMinutes = eh * 60 + em;
 
 	const isOpen = nowMinutes >= startMinutes && nowMinutes < endMinutes;
-	return {
-		isOpen: isOpen,
-		text: isOpen ? `Open until ${end}` : `Closed (Opens ${start})`,
-	};
+	let text;
+	if (isOpen) {
+		text = `Open until ${end}`;
+	} else if (nowMinutes < startMinutes) {
+		text = `Closed (Opens ${start})`;
+	} else {
+		text = "Closed for the day";
+	}
+	return { isOpen, text };
 }
 
 function getIconHtml(type) {
-	const icons = {
-		cafe: "☕",
-		restaurant: "🍽",
-		store: "🛍️",
-		bar: "🍺",
-		bookstore: "📚",
-		bikeshop: "🚲",
-		bakery: "🥖",
-	};
-	return icons[type] || "📍";
+	for (const cat of Object.values(categoryHierarchy)) {
+		if (cat.subcategories[type]) return cat.subcategories[type].emoji;
+	}
+	return "📍";
+}
+
+function getDisplayLabel(type) {
+	for (const cat of Object.values(categoryHierarchy)) {
+		if (cat.subcategories[type]) return cat.subcategories[type].label;
+	}
+	return type;
 }
 
 function getDisplayType(b, filterType) {
@@ -142,6 +124,7 @@ if (typeof module !== "undefined" && module.exports) {
 	module.exports = {
 		getOpenStatus,
 		getIconHtml,
+		getDisplayLabel,
 		filterBusinesses,
 		getDisplayType,
 		categoryHierarchy,

@@ -1,7 +1,19 @@
+// --- 1. UTILITIES ---
+function escapeHtml(str) {
+	if (!str) return "";
+	return str
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#039;");
+}
+
 // --- 2. STATE ---
 let map, userMarker;
 let currentView = "map"; // 'map' or 'list'
 let currentFilter = "all";
+let openNowFilter = false;
 let userLoc = null;
 let markers = [];
 let markerClusterGroup = null;
@@ -120,40 +132,64 @@ function setupDropdownEvents() {
 
 // --- 4. RENDER FUNCTIONS ---
 
-function createCardHTML(b) {
+function createCardHTML(b, distanceMeters) {
 	const status = getOpenStatus(b);
 	const statusClass = status.isOpen ? "open" : "closed";
-	const typeDisplay = Array.isArray(b.type) ? b.type.join(" & ") : b.type;
+	const types = Array.isArray(b.type) ? b.type : [b.type];
+	const typeLabels = types.map((t) => getDisplayLabel(t));
+	const typeEmojis = types.map((t) => getIconHtml(t)).join("");
+	const typeDisplay = typeLabels.join(" & ");
+
+	const safeName = escapeHtml(b.name);
+	const safeDesc = escapeHtml(b.description);
+	const safePhone = escapeHtml(b.phone);
+	const safeType = escapeHtml(typeDisplay);
+	const safeWebsite = b.website ? escapeHtml(b.website) : "";
+
+	let distanceHtml = "";
+	if (distanceMeters != null) {
+		const distText =
+			distanceMeters < 1000
+				? `${Math.round(distanceMeters)} m`
+				: `${(distanceMeters / 1000).toFixed(1)} km`;
+		distanceHtml = `<span class="biz-distance">${distText} away</span>`;
+	}
 
 	return `
                 <div class="biz-card popup-card">
                     <div class="biz-header">
-                        <span class="biz-name">${b.name}</span>
-                        <span class="biz-type">${typeDisplay}</span>
+                        <span class="biz-name">${typeEmojis} ${safeName}</span>
+                        <span class="biz-type">${safeType}</span>
                     </div>
-                    <div class="biz-status ${statusClass}">${status.text}</div>
-                <p>${b.description}</p>
+                    <div class="biz-meta">
+                        <span class="biz-status ${statusClass}">${escapeHtml(status.text)}</span>
+                        ${distanceHtml}
+                    </div>
+                <p>${safeDesc}</p>
                 <div class="biz-actions">
-                     <a href="https://www.google.com/maps/dir/?api=1&destination=${b.lat},${b.long}" target="_blank" class="btn-link">Navigate ↗</a>
-                     ${b.phone ? `<a href="tel:${b.phone}" class="btn-link">Call</a>` : ""}
+                     <a href="https://www.google.com/maps/dir/?api=1&amp;destination=${b.lat},${b.long}" target="_blank" class="btn-link">Navigate ↗</a>
+                     ${b.phone ? `<a href="tel:${safePhone}" class="btn-link">Call</a>` : ""}
+                     ${safeWebsite ? `<a href="${safeWebsite}" target="_blank" class="btn-link">Website ↗</a>` : ""}
                 </div>
             </div>
         `;
 }
 
-function renderList(data) {
+function renderList(data, distances) {
 	const container = document.getElementById("list-view");
-	container.innerHTML = "";
-	if (data.length === 0)
+	if (data.length === 0) {
 		container.innerHTML =
 			'<p style="text-align:center; margin-top:20px;">No results found.</p>';
-
+		return;
+	}
+	let html = "";
 	data.forEach((b) => {
-		container.innerHTML += createCardHTML(b);
+		html += createCardHTML(b, distances ? distances.get(b) : undefined);
 	});
+	container.innerHTML = html;
 }
 
-function renderMap(data) {
+function renderMap(data, distances) {
 	// Clear existing cluster group
 	if (markerClusterGroup) {
 		map.removeLayer(markerClusterGroup);
@@ -259,7 +295,7 @@ function renderMap(data) {
 			iconAnchor: [15, 15],
 		});
 
-		const popupContent = createCardHTML(b);
+		const popupContent = createCardHTML(b, distances ? distances.get(b) : undefined);
 		const marker = L.marker([b.lat, b.long], {
 			icon: icon,
 			businessType: displayType,
@@ -277,19 +313,25 @@ function renderMap(data) {
 
 function updateApp() {
 	// Filter Data
-	const filtered = filterBusinesses(businesses, currentFilter);
+	let filtered = filterBusinesses(businesses, currentFilter);
 
-	// If we have user location, calculate distance
-	if (userLoc) {
-		filtered.forEach((b) => {
-			b.distance = map.distance(userLoc, [b.lat, b.long]);
-		});
-		// Sort by distance
-		filtered.sort((a, b) => a.distance - b.distance);
+	// Apply "Open Now" filter
+	if (openNowFilter) {
+		filtered = filtered.filter((b) => getOpenStatus(b).isOpen);
 	}
 
-	if (currentView === "map") renderMap(filtered);
-	else renderList(filtered);
+	// If we have user location, calculate distance and sort
+	let distances = null;
+	if (userLoc) {
+		distances = new Map();
+		filtered.forEach((b) => {
+			distances.set(b, map.distance(userLoc, [b.lat, b.long]));
+		});
+		filtered.sort((a, b) => distances.get(a) - distances.get(b));
+	}
+
+	if (currentView === "map") renderMap(filtered, distances);
+	else renderList(filtered, distances);
 
 	// Update the active cluster popup if it exists
 	if (activeClusterPopup && map.hasLayer(activeClusterPopup.popup)) {
@@ -348,6 +390,18 @@ window.onload = () => {
 	updateApp();
 
 	// --- EVENTS ---
+
+	// Open Now toggle
+	document.getElementById("btn-open-now").onclick = () => {
+		openNowFilter = !openNowFilter;
+		const btn = document.getElementById("btn-open-now");
+		if (openNowFilter) {
+			btn.classList.add("active");
+		} else {
+			btn.classList.remove("active");
+		}
+		updateApp();
+	};
 
 	// Toggle Map/List
 	document.getElementById("btn-map").onclick = () => {

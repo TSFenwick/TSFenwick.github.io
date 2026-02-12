@@ -19,11 +19,68 @@ ENRICHED_TOML_FILE = 'data_enriched.toml'
 OUTPUT_FILE = 'index.html'
 OUTPUT_FILE_UNMIN = 'index_unminified.html'
 
+def _strip_comments(content):
+    """Remove comments while preserving string literals.
+
+    Walks through the text character-by-character so that comment-like
+    sequences inside quoted strings or template literals are left alone.
+    Handles:
+      - HTML comments  <!-- ... -->
+      - CSS/JS block comments  /* ... */
+      - JS single-line comments  // ...
+      - single-quoted, double-quoted and backtick strings (with escapes)
+    """
+    result = []
+    i = 0
+    length = len(content)
+    while i < length:
+        # --- string literals ---
+        if content[i] in ('"', "'", '`'):
+            quote = content[i]
+            result.append(content[i])
+            i += 1
+            while i < length:
+                if content[i] == '\\' and i + 1 < length:
+                    result.append(content[i:i+2])
+                    i += 2
+                elif content[i] == quote:
+                    result.append(content[i])
+                    i += 1
+                    break
+                else:
+                    result.append(content[i])
+                    i += 1
+            continue
+
+        # --- HTML comments ---
+        if content[i:i+4] == '<!--':
+            end = content.find('-->', i + 4)
+            i = end + 3 if end != -1 else length
+            continue
+
+        # --- block comments ---
+        if content[i:i+2] == '/*':
+            end = content.find('*/', i + 2)
+            i = end + 2 if end != -1 else length
+            continue
+
+        # --- single-line comments (but not protocol slashes like https://) ---
+        if content[i:i+2] == '//' and (i == 0 or content[i-1] != ':'):
+            end = content.find('\n', i + 2)
+            if end == -1:
+                i = length
+            else:
+                i = end  # keep the newline itself
+            continue
+
+        result.append(content[i])
+        i += 1
+    return ''.join(result)
+
+
 def minify_code(content):
-    # Remove HTML comments
-    content = re.sub(r'<!--.*?-->', '', content, flags=re.DOTALL)
-    # Remove CSS/JS block comments
-    content = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)
+    # Remove comments (string-aware)
+    content = _strip_comments(content)
     # Remove leading/trailing whitespace on lines
     content = re.sub(r'^\s+|\s+$', '', content, flags=re.MULTILINE)
     # Remove empty lines
@@ -57,6 +114,8 @@ HTML_TEMPLATE = """
         .closed {{ color: red; }}
         .biz-actions {{ margin-top: 10px; display: flex; gap: 10px; }}
         .btn-link {{ text-decoration: none; color: var(--primary); font-size: 0.9em; font-weight: 500; }}
+        .biz-meta {{ display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }}
+        .biz-distance {{ font-size: 0.85em; color: #888; }}
         .leaflet-popup-content-wrapper {{ border-radius: 8px; padding: 0; }}
         .leaflet-popup-content {{ margin: 0; width: 280px !important; }}
         .popup-card {{ border: none; box-shadow: none; margin: 0; }}
@@ -113,6 +172,7 @@ HTML_TEMPLATE = """
         <div class="dropdown-selected"></div>
         <div class="dropdown-options"></div>
     </div>
+    <button id="btn-open-now">⏰ Open Now</button>
     <button id="btn-map" class="active">Map</button>
     <button id="btn-list">List</button>
     <button id="btn-loc">📍 Me</button>
@@ -124,11 +184,18 @@ HTML_TEMPLATE = """
 <script>
     const rawData = {json_data};
     const businesses = rawData.businesses;
+    const categoryHierarchy = {category_hierarchy};
     /* JS_INJECTION_POINT */
 </script>
 </body>
 </html>
 """
+
+def build_category_hierarchy_js(data):
+    """Build a JS object literal for categoryHierarchy from data.toml categories."""
+    categories = data.get('categories', {})
+    return json.dumps(categories, ensure_ascii=False)
+
 
 def build():
     # 1. Read TOML
@@ -148,11 +215,18 @@ def build():
     with open(ENRICHED_TOML_FILE, "wb") as f:
         tomli_w.dump(data, f)
 
+    # 1.7 Build category hierarchy JS and strip categories from data sent to client
+    category_hierarchy_json = build_category_hierarchy_js(data)
+    category_hierarchy_json_min = json.dumps(data.get('categories', {}), ensure_ascii=False, separators=(',', ':'))
+
+    # Remove categories from the data sent to the client (it's injected separately)
+    client_data = {k: v for k, v in data.items() if k != 'categories'}
+
     # 2. Convert Data to JSON string
     # Minified JSON for production
-    json_data_min = json.dumps(data, ensure_ascii=False, separators=(',', ':'))
+    json_data_min = json.dumps(client_data, ensure_ascii=False, separators=(',', ':'))
     # Pretty JSON for dev (optional, but keep simple)
-    json_data = json.dumps(data, ensure_ascii=False)
+    json_data = json.dumps(client_data, ensure_ascii=False)
 
     # 2.5 Run Minification
     print("Running JS minification...")
@@ -183,7 +257,8 @@ def build():
     # UNMINIFIED VERSION
     formatted_html = HTML_TEMPLATE.format(
         site_title=data.get('title', 'Guide'),
-        json_data=json_data
+        json_data=json_data,
+        category_hierarchy=category_hierarchy_json
     )
     final_html_unmin = formatted_html.replace("/* JS_INJECTION_POINT */", js_logic + "\n" + js_main)
 
@@ -193,7 +268,8 @@ def build():
     # Actually, simpler: Use formatted_html but with json_data_min
     formatted_html_min = HTML_TEMPLATE.format(
         site_title=data.get('title', 'Guide'),
-        json_data=json_data_min
+        json_data=json_data_min,
+        category_hierarchy=category_hierarchy_json_min
     )
     
     # Replace injection point with minified JS

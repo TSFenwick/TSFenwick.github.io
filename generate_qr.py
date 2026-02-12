@@ -18,8 +18,8 @@ from geocoding import process_data_with_geocoding
 TOML_FILE = 'data.toml'
 ENRICHED_TOML_FILE = 'data_enriched.toml'
 OUTPUT_DIR = 'qrcodes'
-# REPLACE THIS WITH YOUR ACTUAL LIVE URL AFTER HOSTING
-BASE_URL = 'https://your-fast-map-site.netlify.app' 
+# Read from environment variable, or fall back to data.toml 'base_url' field at runtime
+BASE_URL = os.environ.get('BASE_URL', '')
 # Path to your central logo image (e.g., 'branding/logo.png'). 
 # Set to None if you don't want a logo.
 LOGO_PATH = 'logo.png' 
@@ -83,6 +83,14 @@ def main():
             data = tomli.load(f)
     except FileNotFoundError:
         print(f"Error: {TOML_FILE} not found!")
+        return
+
+    # Resolve BASE_URL: env var > data.toml field
+    global BASE_URL
+    if not BASE_URL:
+        BASE_URL = data.get('base_url', '')
+    if not BASE_URL:
+        print("Error: BASE_URL not set. Set the BASE_URL environment variable or add 'base_url' to data.toml.")
         return
 
     # Geocode addresses if lat/long are missing

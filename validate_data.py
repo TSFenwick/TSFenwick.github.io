@@ -7,7 +7,8 @@ import tomli
 
 DATA_FILE_DEFAULT = "data.toml"
 
-ALLOWED_TYPES = {
+# Fallback types used when no [categories] section exists in data.toml
+_FALLBACK_TYPES = {
     "bakery",
     "restaurant",
     "cafe",
@@ -16,6 +17,22 @@ ALLOWED_TYPES = {
     "bikeshop",
     "store",
 }
+
+
+def extract_allowed_types(data):
+    """Derive allowed business types from the [categories] section of data.
+
+    Each broad category has a 'subcategories' dict whose keys are the valid types.
+    Falls back to _FALLBACK_TYPES when categories are absent.
+    """
+    categories = data.get("categories", {})
+    if not categories:
+        return _FALLBACK_TYPES
+    types = set()
+    for cat in categories.values():
+        if isinstance(cat, dict) and "subcategories" in cat:
+            types.update(cat["subcategories"].keys())
+    return types if types else _FALLBACK_TYPES
 
 DAY_NAMES = {
     "monday",
@@ -112,6 +129,8 @@ def validate_data(data):
         _add_error(errors, "data", "root must be a TOML table")
         return errors, warnings
 
+    allowed_types = extract_allowed_types(data)
+
     title = data.get("title")
     if not isinstance(title, str) or not title.strip():
         _add_error(errors, "title", "must be a non-empty string")
@@ -187,7 +206,7 @@ def validate_data(data):
                 if not isinstance(t, str):
                     _add_error(errors, f"{path}.type", "type values must be strings")
                     break
-                if t not in ALLOWED_TYPES:
+                if t not in allowed_types:
                     _add_error(errors, f"{path}.type", f"unsupported type '{t}'")
 
         if "address" not in business and ("lat" not in business or "long" not in business):

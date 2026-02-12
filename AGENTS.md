@@ -47,10 +47,11 @@ uv run python -m pytest
 ```
 
 ## Running javascript tests
-
 ```shell
 npm test
 ```
+This runs both unit tests (`tests/logic.test.js`) and UI/DOM tests (`tests/ui.test.js`).
+UI tests use `jest-environment-jsdom` to test DOM rendering functions from `main.js` (card rendering, list view, dropdown building and interaction).
 
 ## running static checkers
 
@@ -59,6 +60,5 @@ npx @biomejs/biome lint --write
 ```
 
 ## files
-
 do not edit `index.html` and `index_unminified.html` are generated files
 `data.toml` is the source of truth for the data. It should also be very easy to edit for others to add values to it.

@@ -7,14 +7,6 @@ import ssl
 
 CACHE_FILE = 'geocoding_cache.json'
 
-def get_ssl_context():
-    # Attempt to use a more permissive SSL context if the default one fails
-    # This is often needed on macOS with default Python installations
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-    return ctx
-
 def load_cache():
     if os.path.exists(CACHE_FILE):
         try:
@@ -32,8 +24,11 @@ def save_cache(cache):
     except Exception as e:
         print(f"Warning: Could not save cache: {e}")
 
-def geocode(address):
-    cache = load_cache()
+def geocode(address, cache=None):
+    """Geocode a single address. Accepts an optional shared cache dict."""
+    if cache is None:
+        cache = load_cache()
+
     if address in cache:
         return cache[address]
 
@@ -45,15 +40,12 @@ def geocode(address):
 
     try:
         req = urllib.request.Request(url, headers=headers)
-        # Try with default context first, then fall back to permissive context
         try:
             response = urllib.request.urlopen(req)
         except ssl.SSLCertVerificationError:
-            print("SSL verification failed, trying with permissive context...")
-            response = urllib.request.urlopen(req, context=get_ssl_context())
-        except Exception:
-             # some other error, try permissive anyway as a last resort if it looks like SSL
-             response = urllib.request.urlopen(req, context=get_ssl_context())
+            print("SSL verification failed, trying with certifi or system certs...")
+            ctx = ssl.create_default_context()
+            response = urllib.request.urlopen(req, context=ctx)
 
         with response:
             data = json.loads(response.read().decode())
@@ -63,7 +55,6 @@ def geocode(address):
                     'long': float(data[0]['lon'])
                 }
                 cache[address] = result
-                save_cache(cache)
                 # Respect Nominatim usage policy (1 request per second)
                 time.sleep(1)
                 return result
@@ -77,15 +68,18 @@ def geocode(address):
 def process_data_with_geocoding(data):
     """
     Updates data in-place by filling missing lat/long from address.
+    Loads cache once, passes it through all geocode calls, saves once at the end.
     """
+    cache = load_cache()
     updated = False
     for category in ['businesses', 'locations']:
         if category in data:
             for item in data[category]:
                 if ('lat' not in item or 'long' not in item) and 'address' in item:
-                    coords = geocode(item['address'])
+                    coords = geocode(item['address'], cache=cache)
                     if coords:
                         item['lat'] = coords['lat']
                         item['long'] = coords['long']
                         updated = True
+    save_cache(cache)
     return updated

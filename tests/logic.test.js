@@ -1,3 +1,33 @@
+// Define categoryHierarchy globally before loading logic.js (mirrors build-time injection)
+global.categoryHierarchy = {
+	food: {
+		emoji: "🍴",
+		label: "Food",
+		subcategories: {
+			bakery: { emoji: "🥖", label: "Bakery" },
+			restaurant: { emoji: "🍽", label: "Restaurant" },
+			cafe: { emoji: "☕", label: "Café" },
+		},
+	},
+	drink: {
+		emoji: "🍹",
+		label: "Drink",
+		subcategories: {
+			bar: { emoji: "🍺", label: "Bar" },
+			cafe: { emoji: "☕", label: "Café" },
+		},
+	},
+	shopping: {
+		emoji: "🛒",
+		label: "Shopping",
+		subcategories: {
+			bookstore: { emoji: "📚", label: "Bookstore" },
+			bikeshop: { emoji: "🚲", label: "Bike Shop" },
+			store: { emoji: "🛍️", label: "Store" },
+		},
+	},
+};
+
 const {
 	getOpenStatus,
 	getIconHtml,
@@ -70,7 +100,7 @@ describe("Business Logic", () => {
 			const date = new Date("2025-01-06T18:00:00");
 			const status = getOpenStatus(business, date);
 			expect(status.isOpen).toBe(false);
-			expect(status.text).toContain("Closed");
+			expect(status.text).toBe("Closed for the day");
 		});
 
 		test("uses default hours when specific day not defined (Wednesday)", () => {

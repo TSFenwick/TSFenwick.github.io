@@ -36,10 +36,11 @@ class TestGeocoding(unittest.TestCase):
         mock_response.__enter__.return_value = mock_response
         mock_urlopen.return_value = mock_response
 
-        result = geocode("New York")
+        cache = {}
+        result = geocode("New York", cache=cache)
         
         self.assertEqual(result, {'lat': 12.34, 'long': 56.78})
-        mock_save_cache.assert_called()
+        self.assertIn("New York", cache)
 
     @patch('geocoding.load_cache')
     def test_geocode_cached(self, mock_load_cache):
@@ -66,7 +67,7 @@ class TestGeocoding(unittest.TestCase):
         self.assertEqual(data['businesses'][0]['lat'], 5.0)
         self.assertEqual(data['businesses'][0]['long'], 6.0)
         # Should verify geocode was called only for B1
-        mock_geocode.assert_called_once_with('Addr1')
+        mock_geocode.assert_called_once_with('Addr1', cache={})
 
 if __name__ == '__main__':
     unittest.main()
